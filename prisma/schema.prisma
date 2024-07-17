@@ -1,0 +1,63 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum BuildingType {
+  STUDENT_UNION_1_FLOOR_1
+  STUDENT_UNION_1_FLOOR_2
+  STUDENT_UNION_2_FLOOR_1
+  STUDENT_UNION_2_FLOOR_2
+}
+
+enum MenuType {
+  BREAKFAST
+  LUNCH
+  LUNCH_SPECIAL
+  DINNER
+}
+
+enum Language {
+  KOREAN
+  ENGLISH
+}
+
+model Menu {
+  id Int @id @default(autoincrement())
+  type MenuType 
+  date DateTime
+  buildingType BuildingType @map("building_type")
+
+  Foods Food[]
+  @@map("menu")
+}
+
+model Food {
+  id Int @id @default(autoincrement())
+  image_url String?
+
+  Menus Menu[]
+  FoodNames FoodName[]
+  @@map("food")
+}
+
+model FoodName {
+  food_id Int 
+  name String 
+  language Language 
+
+  Foods Food @relation(fields: [food_id], references: [id])
+
+  @@id ([food_id, language])
+  @@map("food_name")
+}
