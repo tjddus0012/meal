@@ -37,13 +37,13 @@ export class DeviceController {
     return this.deviceService.createImageURL(body.name, body.image_url);
   }
 
-  @Post('/find:buildingType:language')
+  @Post('/find/:buildingType/:language')
   async findMenuBybldg(
     @Param('buildingType') buildingType: BuildingType,
     @Param('language') Language: Language,
   ) {
     const dayjs = require('dayjs');
-    const date = dayjs();
+    const date = dayjs().toDate();
     return await this.deviceService.findMenuBybldg(
       buildingType,
       date,

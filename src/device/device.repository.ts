@@ -1,9 +1,14 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
-import { BuildingType, Language, MenuType } from '@prisma/client';
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import { BuildingType, Food, Language, Menu, MenuType } from '@prisma/client';
 import { NotFoundError } from 'rxjs';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { createMenuDto } from './dto/createMenuDto';
 import dayjs from 'dayjs';
+import { error } from 'console';
 
 @Injectable()
 export class DeviceRepository {
@@ -32,26 +37,22 @@ export class DeviceRepository {
     type: MenuType,
     language: Language,
   ) {
-    return this.prismaService.menu
+    const setDate = new Date(date);
+    setDate.setUTCHours(0, 0, 0, 0);
+    console.log(buildingType, date, type, language);
+    return await this.prismaService.menu
       .findFirst({
         where: {
           buildingType,
           date: {
-            equals: date,
+            equals: setDate,
           },
           type,
-          Foods: {
-            some: {
-              FoodNames: {
-                some: { language },
-              },
-            },
-          },
         },
         include: {
           Foods: {
             include: {
-              FoodNames: true,
+              FoodNames: { where: { language } },
             },
           },
         },
@@ -64,9 +65,26 @@ export class DeviceRepository {
       });
   }
 
+  checkIfMenuExists(menu: createMenuDto) {
+    const date = new Date(menu.date);
+    date.setUTCHours(0, 0, 0, 0);
+    return this.prismaService.menu.findFirst({
+      where: {
+        date: date,
+        buildingType: menu.buildingType,
+        type: menu.type,
+      },
+      include: {
+        Foods: true,
+      },
+    });
+  }
+
   async createMenu(menu: createMenuDto) {
-    let date = new Date(menu.date);
-    date;
+    const date = new Date(menu.date);
+    date.setUTCHours(0, 0, 0, 0);
+    console.log(date);
+
     let lang: Language = menu.food[0].foodName.language;
 
     let existMenu;
@@ -86,36 +104,55 @@ export class DeviceRepository {
     }
 
     if (existMenu) {
-      console.error(
-        `already exist menu '${menu.buildingType}, ${menu.date}, ${menu.type}, ${lang}'`,
+      throw new ConflictException(
+        `${menu.buildingType}, ${menu.date}, ${menu.type}, ${lang}`,
       );
-      return;
     }
 
-    const foodList = await Promise.all(
-      menu.food.map(async (food) => {
-        const { name, language } = food.foodName;
-        const existFood = await this.findFoodByName(name, language);
-        if (!existFood) {
-          const newFood = await this.createFood(name, language, food.image_url);
+    let foodList;
 
-          return { id: newFood.id };
-        } else {
-          return { id: existFood.id };
-        }
-      }),
-    );
+    let ExistingMenu = await this.checkIfMenuExists(menu);
+    if (ExistingMenu) {
+      ExistingMenu.Foods.map(async (existFood, index) => {
+        const id = existFood.id;
+        return this.prismaService.foodName.create({
+          data: {
+            food_id: id,
+            name: menu.food[index].foodName.name,
+            language: menu.food[index].foodName.language,
+          },
+        });
+      });
+    } else {
+      foodList = await Promise.all(
+        menu.food.map(async (food) => {
+          const { name, language } = food.foodName;
+          const existFood = await this.findFoodByName(name, language);
+          if (!existFood) {
+            const newFood = await this.createFood(
+              name,
+              language,
+              food.image_url,
+            );
 
-    return this.prismaService.menu.create({
-      data: {
-        type: menu.type,
-        buildingType: menu.buildingType,
-        date: date,
-        Foods: {
-          connect: foodList,
+            return { id: newFood.id };
+          } else {
+            return { id: existFood.id };
+          }
+        }),
+      );
+
+      return this.prismaService.menu.create({
+        data: {
+          type: menu.type,
+          buildingType: menu.buildingType,
+          date: date,
+          Foods: {
+            connect: foodList,
+          },
         },
-      },
-    });
+      });
+    }
   }
 
   async createFood(name: string, language: Language, image_url: string) {

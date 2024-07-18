@@ -91,11 +91,9 @@ export class DeviceService {
   async getNowMenu(language: Language) {
     try {
       const dayjs = require('dayjs');
-      let date = dayjs()
-        .set('hour', 0)
-        .set('minute', 0)
-        .set('second', 0)
-        .set('millisecond', 0);
+      let date = dayjs();
+      const setDate = new Date(date);
+      setDate.setUTCHours(0, 0, 0, 0);
       const currentHour = dayjs().hour();
       if (currentHour >= 19) {
         date = date.add(1, 'day');
@@ -135,7 +133,9 @@ export class DeviceService {
         language,
       );
 
-      let result: string = `${dayjs()}`;
+      let month = date.month() + 1;
+
+      let result: string = date.year() + '-' + month + '-' + date.date() + '  ';
       if (language === 'KOREAN') {
         if (currentHour >= 19 || currentHour < 9) {
           result += '조식\n';
